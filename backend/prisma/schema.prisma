@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+
+model User {
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  passwordHash        String    @map("password_hash")
+  name                String
+  avatarUrl           String?   @map("avatar_url")
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  conversations Conversation[]
+
+  @@map("users")
+}
+
+// ============================================================
+// CONVERSATIONS
+// ============================================================
+
+model Conversation {
+  id          String             @id @default(uuid())
+  userId      String             @map("user_id")
+  title       String             @default("New Conversation")
+  status      ConversationStatus @default(ACTIVE)
+  model       String             // e.g. "gemini-2.0-flash"
+  provider    Provider           @default(GEMINI)
+  systemPrompt String?           @map("system_prompt")
+
+  // Token/cost tracking at conversation level (denormalized for fast reads)
+  totalInputTokens  Int @default(0) @map("total_input_tokens")
+  totalOutputTokens Int @default(0) @map("total_output_tokens")
+  totalCostUsd      Decimal @default(0) @db.Decimal(10, 6) @map("total_cost_usd")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  inferenceLogs InferenceLog[]
+
+  @@index([userId, status])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("conversations")
+}
+
+// ============================================================
+// MESSAGES
+// ============================================================
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  role           Role
+  content        String   @db.Text
+
+  // Pre-computed for list views (avoid loading full content)
+  contentPreview String   @map("content_preview") @db.VarChar(200)
+
+  // Token count (populated from inference log for assistant messages)
+  tokenCount     Int?     @map("token_count")
+
+  // Ordering within conversation
+  sequenceNumber Int      @map("sequence_number")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  inferenceLog InferenceLog? // one-to-one: only assistant messages have this
+
+  @@index([conversationId, sequenceNumber])
+  @@map("messages")
+}
+
+// ============================================================
+// INFERENCE LOGS
+// ============================================================
+// One row per LLM API call.
+// Linked to exactly one assistant Message and one Conversation.
+// This is the core of the logging system.
+
+model InferenceLog {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  messageId      String?  @unique @map("message_id") // nullable until message is saved
+
+  // Provider & model
+  provider       Provider
+  model          String
+
+  // Token usage (from API response)
+  inputTokens    Int?     @map("input_tokens")
+  outputTokens   Int?     @map("output_tokens")
+  totalTokens    Int?     @map("total_tokens")
+
+  // Cost (calculated from token usage * model pricing)
+  costUsd        Decimal? @db.Decimal(10, 6) @map("cost_usd")
+
+  // Latency
+  latencyMs           Int? @map("latency_ms")            // total wall time
+  timeToFirstTokenMs  Int? @map("time_to_first_token_ms") // ms until first stream chunk
+
+  // Request metadata
+  requestAt      DateTime  @map("request_at")
+  responseAt     DateTime? @map("response_at")
+
+  // Status & errors
+  status         LogStatus
+  stopReason     String?   @map("stop_reason") // "end_turn" | "max_tokens" | "stop_sequence"
+  errorCode      String?   @map("error_code")
+  errorMessage   String?   @map("error_message") @db.Text
+
+  // Content previews (first 200 chars, for dashboard display)
+  inputPreview   String?   @map("input_preview")  @db.VarChar(200)
+  outputPreview  String?   @map("output_preview") @db.VarChar(200)
+
+  // Flags
+  isStreaming    Boolean   @default(false) @map("is_streaming")
+
+  // Raw request/response headers for debugging (optional)
+  requestId      String?   @map("request_id") // ID returned by provider
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([requestAt(sort: Desc)])
+  @@index([status])
+  @@index([provider, model])
+  @@map("inference_logs")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum ConversationStatus {
+  ACTIVE
+  CANCELLED
+  ARCHIVED
+
+  @@map("conversation_status")
+}
+
+enum Role {
+  user
+  assistant
+  system
+
+  @@map("role")
+}
+
+enum Provider {
+  GEMINI
+  GROQ
+  OPENROUTER
+
+  @@map("provider")
+}
+
+enum LogStatus {
+  SUCCESS
+  ERROR
+  CANCELLED
+  PENDING   // written at request start, updated on completion
+
+  @@map("log_status")
+}

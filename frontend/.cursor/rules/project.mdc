@@ -1,0 +1,63 @@
+---
+description: Project conventions for llm-logger-frontend. Apply these rules to ALL code written in this project.
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+# LLM Logger Frontend — Project Rules
+
+## Architecture
+
+- All pages use the **Next.js App Router**. No `pages/` directory.
+- All page components that render UI live in `app/` and are Server Components by default.
+- Add `"use client"` only when hooks, event handlers, or browser APIs are needed.
+- Wrap every page with `<AppShell>` from `@/components/layout/AppShell` to get sidebar + header.
+
+## API & Data Fetching
+
+- **All HTTP calls go through `lib/api.ts`** (Axios instance). Never use `fetch` directly.
+- **Server state** (anything from the API) → React Query (`useQuery`, `useMutation`).
+- **Client / UI state** (sidebar, modals, active filters) → Zustand stores in `lib/stores/`.
+- Never store API response data in Zustand.
+
+## Styling
+
+- Use **Tailwind CSS** utility classes only. Do not write custom CSS unless it's a Shadcn CSS variable override.
+- **Dark mode is always on** via `className="dark"` on `<html>`. Never add theme toggles.
+- Color palette: `zinc-*` for backgrounds, `violet-*` for primary accent, `muted-foreground` for secondary text.
+
+## Components
+
+- Use **Shadcn UI** components exclusively for all UI primitives (buttons, inputs, cards, dialogs, etc.).
+- Shared reusable components live in `components/shared/`.
+- Layout components (sidebar, header) live in `components/layout/`.
+- Page-specific components are co-located inside the feature route folder.
+
+## Icons
+
+- All icons come from **`lucide-react`**. No other icon libraries.
+
+## Typography & Dates
+
+- All dates are formatted via **`date-fns`**. Never use `.toLocaleDateString()`.
+- Font is **Inter** loaded via `next/font/google`.
+
+## TypeScript
+
+- **Strict mode is on**. No `any` types. No `@ts-ignore`.
+- All types live in `types/` (e.g., `types/log.ts`, `types/session.ts`, `types/auth.ts`).
+
+## Hooks
+
+- Every new hook exports a single named function and lives in `lib/hooks/`.
+- Hooks that query the API must use React Query (`useQuery` or `useMutation`).
+
+## Notifications
+
+- Use `sonner` (from `@/components/ui/sonner`) for all toast notifications. Import `toast` from `"sonner"`.
+
+## Naming
+
+- Components: PascalCase (`LogDetailCard.tsx`)
+- Hooks: camelCase with `use` prefix (`useLogDetail.ts`)
+- Stores: camelCase with `use` prefix (`useFilterStore.ts`)
+- Types: PascalCase interfaces (`LLMLog`, `LogFilters`)
