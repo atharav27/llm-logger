@@ -3,6 +3,7 @@ import { apiFetch } from "./client";
 import { API_ROUTES } from "@/config/routes";
 import type {
   Conversation,
+  ConversationStatus,
   ConversationSummary,
   CreateConversationRequest,
   PaginatedConversations,
@@ -45,5 +46,16 @@ export function getConversation(id: string): Promise<Conversation> {
 export async function archiveConversation(id: string): Promise<void> {
   await apiFetch<void>(API_ROUTES.CONVERSATIONS.DELETE(id), {
     method: "DELETE",
+  });
+}
+
+/** PATCH /api/v1/conversations/:id/status — cancel/resume conversation */
+export function updateConversationStatus(
+  id: string,
+  status: Extract<ConversationStatus, "ACTIVE" | "CANCELLED">
+): Promise<Conversation> {
+  return apiFetch<Conversation>(API_ROUTES.CONVERSATIONS.STATUS(id), {
+    method: "PATCH",
+    body: { status },
   });
 }

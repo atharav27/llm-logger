@@ -8,7 +8,10 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import { DEFAULT_MODEL_BY_PROVIDER, DEFAULT_PROVIDER } from '../llm/llm-catalog';
+import {
+  DEFAULT_MODEL_BY_PROVIDER,
+  DEFAULT_PROVIDER,
+} from '../llm/llm-catalog';
 
 export class CreateConversationDto {
   @ApiPropertyOptional({ example: 'My first chat' })

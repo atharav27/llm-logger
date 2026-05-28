@@ -6,6 +6,7 @@ import {
   listConversations,
   getConversation,
   archiveConversation,
+  updateConversationStatus,
 } from "@/lib/api/conversations.api";
 import type { ListConversationsParams } from "@/lib/api/conversations.api";
 import type { CreateConversationRequest } from "@/types/conversation";
@@ -68,6 +69,35 @@ export function useArchiveConversation() {
     },
     onError: (err: any) => {
       toast.error(err?.data?.message ?? err?.message ?? "Failed to delete conversation");
+    },
+  });
+}
+
+// ─── Status Mutation (Cancel/Resume) ─────────────────────────
+export function useUpdateConversationStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "ACTIVE" | "CANCELLED";
+    }) => updateConversationStatus(id, status),
+    onSuccess: (conversation) => {
+      // Do not overwrite detail cache with PATCH payload because it may not include `messages`.
+      queryClient.invalidateQueries({ queryKey: conversationKeys.detail(conversation.id) });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
+
+      const action =
+        conversation.status === "ACTIVE" ? "resumed" : "cancelled";
+      toast.success(`Conversation ${action}`);
+    },
+    onError: (err: any) => {
+      toast.error(
+        err?.data?.message ?? err?.message ?? "Failed to update conversation status"
+      );
     },
   });
 }

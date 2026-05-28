@@ -22,6 +22,7 @@ export const API_ROUTES = {
     CREATE: "/api/v1/conversations",
     DETAIL: (id: string) => `/api/v1/conversations/${id}`,
     DELETE: (id: string) => `/api/v1/conversations/${id}`,
+    STATUS: (id: string) => `/api/v1/conversations/${id}/status`,
     MESSAGE: (id: string) => `/api/v1/conversations/${id}/message`,
   },
   ANALYTICS: {

@@ -9,6 +9,7 @@ import {
   Logger,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -19,22 +20,22 @@ import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ConversationStatus } from '@prisma/client';
 import { Request, Response } from 'express';
 
-import {
-  CurrentUser,
-  CurrentUserPayload,
-} from 'src/common/auth/decorators/current-user.decorator';
-import { JwtAccessGuard } from 'src/common/auth/guards/jwt-access.guard';
-import { PrismaService } from 'src/common/database/prisma.service';
-import { ApiAuth } from 'src/common/doc/decorators/api-auth.decorator';
-import { SkipResponseTransform } from 'src/common/response/decorators/skip-response-transform.decorator';
-import { IngestService } from 'src/modules/ingest/ingest.service';
-
 import { ChatService } from './chat.service';
+import { IngestService } from '../ingest/ingest.service';
 import { CreateConversationDto } from './dtos/create-conversation.dto';
 import { ListConversationsDto } from './dtos/list-conversations.dto';
 import { SendMessageDto } from './dtos/send-message.dto';
+import { UpdateConversationStatusDto } from './dtos/update-conversation-status.dto';
 import { resolveMessageProviderModel } from './llm/llm-catalog';
 import { LlmService } from './llm/llm.service';
+import {
+  CurrentUser,
+  CurrentUserPayload,
+} from '../../common/auth/decorators/current-user.decorator';
+import { JwtAccessGuard } from '../../common/auth/guards/jwt-access.guard';
+import { PrismaService } from '../../common/database/prisma.service';
+import { ApiAuth } from '../../common/doc/decorators/api-auth.decorator';
+import { SkipResponseTransform } from '../../common/response/decorators/skip-response-transform.decorator';
 
 @ApiTags('Chat')
 @ApiAuth()
@@ -90,6 +91,17 @@ export class ChatController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.chatService.archiveConversation(user.id, id);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Update conversation status (cancel/resume)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  updateConversationStatus(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateConversationStatusDto,
+  ) {
+    return this.chatService.updateConversationStatus(user.id, id, dto.status);
   }
 
   @Post(':id/message')

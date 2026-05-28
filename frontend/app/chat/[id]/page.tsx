@@ -8,7 +8,10 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { ChatShell } from "@/components/layout/ChatShell";
 import { PromptBar } from "@/components/chat/PromptBar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
-import { useConversation } from "@/hooks/useConversations";
+import {
+  useConversation,
+  useUpdateConversationStatus,
+} from "@/hooks/useConversations";
 import { streamMessage } from "@/lib/api/sse";
 import { useQueryClient } from "@tanstack/react-query";
 import { conversationKeys } from "@/hooks/useConversations";
@@ -20,6 +23,8 @@ export default function ConversationPage() {
   const queryClient = useQueryClient();
 
   const { data: conversation, isLoading: isLoadingConv, error } = useConversation(id);
+  const { mutateAsync: updateStatus, isPending: isUpdatingStatus } =
+    useUpdateConversationStatus();
 
   // Local streaming state — overlaid on top of the fetched messages
   const [streamingContent, setStreamingContent] = useState("");
@@ -65,10 +70,11 @@ export default function ConversationPage() {
           // Optimistically update the cache to prevent flicker while refetching
           queryClient.setQueryData(conversationKeys.detail(id), (oldData: any) => {
             if (!oldData) return oldData;
+            const safeMessages = Array.isArray(oldData.messages) ? oldData.messages : [];
             return {
               ...oldData,
               messages: [
-                ...oldData.messages,
+                ...safeMessages,
                 {
                   id: `temp-user-${Date.now()}`,
                   conversationId: id,
@@ -76,7 +82,7 @@ export default function ConversationPage() {
                   content: content,
                   contentPreview: content.slice(0, 200),
                   tokenCount: null,
-                  sequenceNumber: oldData.messages.length + 1,
+                  sequenceNumber: safeMessages.length + 1,
                   createdAt: new Date().toISOString(),
                   inferenceLog: null,
                 },
@@ -87,7 +93,7 @@ export default function ConversationPage() {
                   content: fullContent,
                   contentPreview: fullContent.slice(0, 200),
                   tokenCount: null,
-                  sequenceNumber: oldData.messages.length + 2,
+                  sequenceNumber: safeMessages.length + 2,
                   createdAt: new Date().toISOString(),
                   inferenceLog: null,
                 },
@@ -148,10 +154,45 @@ export default function ConversationPage() {
   const isCancelled = conversation.status === "CANCELLED";
   const isArchived = conversation.status === "ARCHIVED";
   const isReadOnly = isCancelled || isArchived;
+  const messages = Array.isArray(conversation.messages)
+    ? conversation.messages
+    : [];
+
+  const handleCancelConversation = async () => {
+    if (isStreaming || isUpdatingStatus) return;
+    await updateStatus({ id, status: "CANCELLED" });
+  };
+
+  const handleResumeConversation = async () => {
+    if (isStreaming || isUpdatingStatus) return;
+    await updateStatus({ id, status: "ACTIVE" });
+  };
 
   return (
     <ChatShell>
       <div className="flex flex-col h-full">
+        <div className="shrink-0 flex items-center justify-end px-4 pt-3">
+          {conversation.status === "ACTIVE" && (
+            <button
+              onClick={handleCancelConversation}
+              disabled={isStreaming || isUpdatingStatus}
+              className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isUpdatingStatus ? "Updating..." : "Cancel Conversation"}
+            </button>
+          )}
+
+          {conversation.status === "CANCELLED" && (
+            <button
+              onClick={handleResumeConversation}
+              disabled={isStreaming || isUpdatingStatus}
+              className="rounded-md border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-300 transition-colors hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isUpdatingStatus ? "Updating..." : "Resume Conversation"}
+            </button>
+          )}
+        </div>
+
         {/* Status banner for non-active conversations */}
         {isReadOnly && (
           <div className={`shrink-0 px-4 py-2 text-xs text-center ${
@@ -162,11 +203,11 @@ export default function ConversationPage() {
         )}
 
         {/* Scrollable message list */}
-        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="scrollbar-none flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
           <div className="max-w-3xl mx-auto w-full px-2 py-6 space-y-1">
 
             {/* Saved messages from DB */}
-            {conversation.messages
+            {messages
               .filter((msg) => msg.role !== "system")
               .map((msg) => (
                 <MessageBubble

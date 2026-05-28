@@ -7,11 +7,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ConversationStatus, Prisma, Provider } from '@prisma/client';
 
-import { PrismaService } from 'src/common/database/prisma.service';
-
 import { CreateConversationDto } from './dtos/create-conversation.dto';
 import { ListConversationsDto } from './dtos/list-conversations.dto';
 import { resolveProviderModel } from './llm/llm-catalog';
+import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
 export class ChatService {
@@ -163,6 +162,41 @@ export class ChatService {
       where: { id: conversationId },
       data: {
         status: ConversationStatus.ARCHIVED,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  async updateConversationStatus(
+    userId: string,
+    conversationId: string,
+    nextStatus: 'ACTIVE' | 'CANCELLED',
+  ) {
+    const conversation = await this.findAndValidateOwnership(
+      userId,
+      conversationId,
+    );
+
+    const current = conversation.status;
+    const isCancelTransition =
+      current === ConversationStatus.ACTIVE &&
+      nextStatus === ConversationStatus.CANCELLED;
+    const isResumeTransition =
+      current === ConversationStatus.CANCELLED &&
+      nextStatus === ConversationStatus.ACTIVE;
+
+    if (!isCancelTransition && !isResumeTransition) {
+      throw new BadRequestException(
+        `Invalid conversation status transition: ${current} -> ${nextStatus}`,
+      );
+    }
+
+    return this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        status: nextStatus,
+        cancelledAt:
+          nextStatus === ConversationStatus.CANCELLED ? new Date() : null,
         updatedAt: new Date(),
       },
     });
