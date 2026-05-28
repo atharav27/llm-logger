@@ -384,3 +384,30 @@ Every LLM API call produces exactly one `InferenceLog` row regardless of outcome
 - Client disconnects are detected via `req.on('close')` — the LLM stream is aborted and the log is marked `CANCELLED`
 - DB write failures in `finalizeLog` are swallowed (logged but not thrown) — a failed log write must never crash the streaming response
 - Unhandled promise rejections are caught at the process level to prevent server crashes from provider SDK errors
+
+---
+
+## Demo Screenshots
+
+All screenshots are stored in `assets/screenshots/`.
+
+### Chat & Sidebar
+
+![Chat Home](assets/screenshots/Screenshot%202026-05-28%20140725.png)
+![Conversation View](assets/screenshots/Screenshot%202026-05-28%20140900.png)
+![Cancelled Conversation](assets/screenshots/Screenshot%202026-05-28%20140934.png)
+![Continued Chat Thread](assets/screenshots/Screenshot%202026-05-28%20141135.png)
+
+### Authentication
+
+![Login Screen](assets/screenshots/Screenshot%202026-05-28%20141018.png)
+![Register Screen](assets/screenshots/Screenshot%202026-05-28%20141002.png)
+
+### Dashboard & Analytics
+
+![Dashboard Overview](assets/screenshots/Screenshot%202026-05-28%20141141.png)
+![Recent Conversation Logs](assets/screenshots/Screenshot%202026-05-28%20141117.png)
+
+### Mobile View
+
+![Mobile Dashboard and Logs](assets/screenshots/Screenshot%202026-05-28%20141048.png)
