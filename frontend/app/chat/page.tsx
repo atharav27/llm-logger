@@ -3,19 +3,21 @@
 // app/chat/page.tsx — New / blank conversation
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChatShell } from "@/components/layout/ChatShell";
 import { PromptBar } from "@/components/chat/PromptBar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { EmptyChat } from "@/components/chat/EmptyChat";
 import { useAuthStore } from "@/lib/stores/auth.store";
-import { useCreateConversation } from "@/hooks/useConversations";
+import { conversationKeys, useCreateConversation } from "@/hooks/useConversations";
 import { streamMessage } from "@/lib/api/sse";
-import type { ConversationMessage, Provider } from "@/types/conversation";
+import type { Conversation, ConversationMessage, Provider } from "@/types/conversation";
 
 export default function ChatPage() {
   const { user } = useAuthStore();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -75,10 +77,37 @@ export default function ChatPage() {
             // Metadata received — optionally store inference info
           },
           onDone: () => {
-            setIsStreaming(false);
             abortRef.current = null;
+
+            const assistantMessage: ConversationMessage = {
+              id: `temp-ast-${Date.now()}`,
+              conversationId: conversation.id,
+              role: "assistant",
+              content: fullContent,
+              contentPreview: fullContent.slice(0, 200),
+              tokenCount: null,
+              sequenceNumber: userMsg.sequenceNumber + 1,
+              createdAt: new Date().toISOString(),
+              inferenceLog: null,
+            };
+
+            const prefetchedConversation: Conversation = {
+              ...(conversation as Omit<Conversation, "messages" | "cancelledAt">),
+              cancelledAt: null,
+              messages: [
+                { ...userMsg, conversationId: conversation.id },
+                assistantMessage,
+              ],
+            };
+
+            // Seed detail cache before navigation to avoid blank/loading flash on /chat/[id].
+            queryClient.setQueryData(
+              conversationKeys.detail(conversation.id),
+              prefetchedConversation
+            );
+
             // Navigate to the conversation page with full history
-            router.push(`/chat/${conversation.id}`);
+            router.push(`/chat/${conversation.id}`, { scroll: false });
           },
           onError: (msg) => {
             setIsStreaming(false);

@@ -33,10 +33,20 @@ export default function ConversationPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
+  const hasMountedRef = useRef(false);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conversation?.messages, streamingContent]);
+    // Skip initial mount auto-scroll to avoid visible top->bottom jump
+    // when navigating from /chat after first streamed response.
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    bottomRef.current?.scrollIntoView({
+      behavior: isStreaming ? "smooth" : "auto",
+    });
+  }, [conversation?.messages, streamingContent, isStreaming]);
 
   useEffect(() => () => { abortRef.current?.(); }, []);
 
